@@ -1,0 +1,3 @@
+[submodule "PDUlib"]
+	path = PDUlib
+	url = https://github.com/PA733/PDUlib.git
