@@ -1,33 +1,5 @@
 add_rules("mode.debug", "mode.release")
 
-target("pdulib_debug")
-    set_kind("binary")
-    add_files("src/PDUlibDebug.cpp")
-    add_files("src/SmsReader/*.cpp")
-    add_includedirs("src/SmsReader")
-
-    set_languages("c++20")
-
-    add_includedirs("PDUlib/src")
-    add_defines("DESKTOP_PDU")
-    add_files("PDUlib/src/*.cpp")
-
-    add_packages("pkgconfig::glib-2.0", "pkgconfig::qmi-glib")
-    add_links("gio-2.0", "gobject-2.0", "glib-2.0")
-
-    add_ldflags("-static-libgcc", "-static-libstdc++", "-Wl,-Bstatic -lc -Wl,-Bdynamic")
-    add_links("qmi-glib", "gio-2.0", "gobject-2.0", "glib-2.0")
-
-    -- 补全一些 clangd 找不到的库
-    add_includedirs(
-        "/usr/include/glib-2.0",
-        "/usr/lib/aarch64-linux-gnu/glib-2.0/include",
-        "/usr/include/libqrtr-glib",
-        "/usr/local/include/libqmi-glib")
-
-    -- 指定 libqmi 的库目录
-    add_linkdirs("/usr/lib")
-
 target("qmi_sms_reader")
     set_kind("binary")
     -- add_files("src/*.cpp")
