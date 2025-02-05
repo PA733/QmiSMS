@@ -52,6 +52,16 @@ struct MessageSyncContext {
   bool temporaryClient = false; // 若为临时 client，则操作完成后需释放
 };
 
+// 用于同步删除短信的上下文
+struct DeleteSMSContext {
+  GMainLoop *loop;
+  uint memoryIndex;
+  std::promise<bool> promise;
+  QmiDevice *device = nullptr;
+  QmiClientWms *client = nullptr;
+  bool temporaryClient = false; // 若为临时 client，则操作完成后需释放
+};
+
 // 用于原始读取操作的上下文
 struct RawReadUserData {
   MessageSyncContext *ctx;
@@ -85,6 +95,10 @@ public:
   // 单条传出
   void startListening(std::chrono::seconds interval,
                       std::function<void(const CompleteSMS &)> callback);
+
+  // 同步删除短信
+  bool deleteMessage(int memoryIndex);
+
   // 停止监听，释放所有资源
   void stopListening();
 
@@ -107,6 +121,9 @@ private:
   // 内部同步读取接口（复用同步上下文实现）
   std::vector<CompleteSMS> performSyncRead();
 
+  // 同步短信删除
+  bool performMessageDelete(int memoryIndex);
+
   // 开始同步短信读取（前提：ctx->client 已就绪）
   void startSyncListMessages(MessageSyncContext *ctx);
 
@@ -117,6 +134,8 @@ private:
   static void rawReadReadyCallback(QmiClientWms *client, GAsyncResult *res,
                                    gpointer user_data);
   static void releaseClientReadyCallback(QmiDevice *device, GAsyncResult *res,
+                                         gpointer user_data);
+  static void deleteMessageReadyCallback(QmiClientWms *client, GAsyncResult *res,
                                          gpointer user_data);
 
   // 用于释放客户端（异步调用封装，由同步接口调用）

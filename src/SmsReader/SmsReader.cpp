@@ -270,6 +270,83 @@ void QmiSmsReader::startSyncListMessages(MessageSyncContext *ctx) {
 }
 
 // =======================
+// 短信删除（同步）
+// =======================
+
+bool QmiSmsReader::deleteMessage(int memoryIndex) {
+  std::unique_lock lock(seenMutex_);
+  if (!performMessageDelete(memoryIndex)) {
+    return false;
+  }
+  return seenMessages_.erase(memoryIndex);
+}
+
+bool QmiSmsReader::performMessageDelete(int memoryIndex) {
+  std::unique_lock opLock(clientOperationMutex_);
+  auto *ctx = new DeleteSMSContext;
+  ctx->loop = g_main_loop_new(nullptr, FALSE);
+  ctx->device = device_;
+  {
+    std::unique_lock lock(persistentClientMutex_);
+    if (persistentClient_) {
+      ctx->client = persistentClient_;
+      ctx->temporaryClient = false;
+    }
+  }
+  if (ctx->client == nullptr) {
+    ctx->client = createWmsClientSync();
+    ctx->temporaryClient = true;
+    if (!ctx->client) {
+      std::cerr << "无法分配临时 WMS 客户端" << std::endl;
+      g_main_loop_quit(ctx->loop);
+      delete ctx;
+      return false;
+    }
+  }
+  QmiMessageWmsDeleteInput *input = qmi_message_wms_delete_input_new();
+  g_autoptr(GError) error = nullptr;
+  if (!qmi_message_wms_delete_input_set_memory_storage(
+          input, QMI_WMS_STORAGE_TYPE_UIM, &error)) {
+    std::cerr << "设置删除短信存储位置失败: " << error->message << std::endl;
+    qmi_message_wms_delete_input_unref(input);
+    if (ctx->temporaryClient)
+      releaseWmsClientSync(ctx->client);
+    g_main_loop_quit(ctx->loop);
+    delete ctx;
+    return false;
+  }
+  if (!qmi_message_wms_delete_input_set_memory_index(input, memoryIndex,
+                                                     &error)) {
+    std::cerr << "设置删除短信 index 失败: " << error->message << std::endl;
+    qmi_message_wms_delete_input_unref(input);
+    if (ctx->temporaryClient)
+      releaseWmsClientSync(ctx->client);
+    g_main_loop_quit(ctx->loop);
+    delete ctx;
+    return false;
+  }
+  if (!qmi_message_wms_delete_input_set_message_mode(
+          input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, &error)) {
+    std::cerr << "设置删除短信模式失败: " << error->message << std::endl;
+    qmi_message_wms_delete_input_unref(input);
+    if (ctx->temporaryClient)
+      releaseWmsClientSync(ctx->client);
+    g_main_loop_quit(ctx->loop);
+    delete ctx;
+    return false;
+  }
+  qmi_client_wms_delete(QMI_CLIENT_WMS(ctx->client), input, 10, nullptr,
+                        (GAsyncReadyCallback)deleteMessageReadyCallback, ctx);
+  qmi_message_wms_delete_input_unref(input);
+  g_main_loop_run(ctx->loop);
+  if (ctx->temporaryClient)
+    releaseWmsClientSync(ctx->client);
+  bool success = ctx->promise.get_future().get();
+  delete ctx;
+  return success;
+}
+
+// =======================
 // 异步回调函数
 // =======================
 void QmiSmsReader::listMessagesReadyCallback(QmiClientWms *client,
@@ -386,6 +463,20 @@ void QmiSmsReader::rawReadReadyCallback(QmiClientWms *client, GAsyncResult *res,
     std::cout << "短信索引 " << mem_index << " 无内容或读取为空。" << std::endl;
   }
   ctx->processedSMSCount++;
+}
+
+void QmiSmsReader::deleteMessageReadyCallback(QmiClientWms *client,
+                                              GAsyncResult *res,
+                                              gpointer user_data) {
+  auto *ctx = static_cast<DeleteSMSContext *>(user_data);
+  g_autoptr(GError) error = nullptr;
+  if (!qmi_client_wms_delete_finish(client, res, &error)) {
+    std::cerr << "删除短信失败: " << error->message << std::endl;
+    ctx->promise.set_value(false);
+  } else {
+    ctx->promise.set_value(true);
+  }
+  g_main_loop_quit(ctx->loop);
 }
 
 void QmiSmsReader::releaseClient(QmiClient *client, gpointer user_data) {
