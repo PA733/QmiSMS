@@ -199,7 +199,7 @@ std::vector<CompleteSMS> QmiSmsReader::readAllMessages() {
 std::vector<CompleteSMS> QmiSmsReader::performSyncRead() {
   // 序列化对 client 的操作
   std::unique_lock opLock(clientOperationMutex_);
-  auto *ctx = new SyncContext;
+  auto *ctx = new MessageSyncContext;
   ctx->loop = g_main_loop_new(nullptr, FALSE);
   ctx->device = device_;
   // 若已有持久 client，则复用；否则创建临时 client
@@ -233,7 +233,7 @@ std::vector<CompleteSMS> QmiSmsReader::performSyncRead() {
   return result;
 }
 
-void QmiSmsReader::startSyncListMessages(SyncContext *ctx) {
+void QmiSmsReader::startSyncListMessages(MessageSyncContext *ctx) {
   g_autoptr(GError) error = nullptr;
   // 输入参数对象
   QmiMessageWmsListMessagesInput *input =
@@ -275,7 +275,7 @@ void QmiSmsReader::startSyncListMessages(SyncContext *ctx) {
 void QmiSmsReader::listMessagesReadyCallback(QmiClientWms *client,
                                              GAsyncResult *res,
                                              gpointer user_data) {
-  auto *ctx = static_cast<SyncContext *>(user_data);
+  auto *ctx = static_cast<MessageSyncContext *>(user_data);
   g_autoptr(GError) error = nullptr;
   g_autoptr(QmiMessageWmsListMessagesOutput) output =
       qmi_client_wms_list_messages_finish(client, res, &error);
@@ -389,7 +389,7 @@ void QmiSmsReader::rawReadReadyCallback(QmiClientWms *client, GAsyncResult *res,
 }
 
 void QmiSmsReader::releaseClient(QmiClient *client, gpointer user_data) {
-  auto *ctx = static_cast<SyncContext *>(user_data);
+  auto *ctx = static_cast<MessageSyncContext *>(user_data);
   qmi_device_release_client(
       ctx->device, client, QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID, 10,
       nullptr, (GAsyncReadyCallback)releaseClientReadyCallback, ctx);
@@ -398,7 +398,7 @@ void QmiSmsReader::releaseClient(QmiClient *client, gpointer user_data) {
 void QmiSmsReader::releaseClientReadyCallback(QmiDevice *device,
                                               GAsyncResult *res,
                                               gpointer user_data) {
-  auto *ctx = static_cast<SyncContext *>(user_data);
+  auto *ctx = static_cast<MessageSyncContext *>(user_data);
   g_autoptr(GError) error = nullptr;
   if (!qmi_device_release_client_finish(device, res, &error)) {
     std::cerr << "释放 WMS client 失败: " << error->message << std::endl;
@@ -409,7 +409,7 @@ void QmiSmsReader::releaseClientReadyCallback(QmiDevice *device,
 // =======================
 // 处理短信
 // =======================
-void QmiSmsReader::processAllSMS(SyncContext *ctx) {
+void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
   std::vector<CompleteSMS> completeSMSList;
   // 用于分段短信拼接的 map，key 为分段短信的参考号
   std::unordered_map<int, std::vector<SMSPart>> multipartGroups;
@@ -523,7 +523,7 @@ void QmiSmsReader::pollingLoop(
   while (listening_) {
     {
       std::unique_lock opLock(clientOperationMutex_);
-      SyncContext ctx;
+      MessageSyncContext ctx;
       ctx.loop = g_main_loop_new(nullptr, FALSE);
       ctx.device = device_;
       {
@@ -547,4 +547,3 @@ void QmiSmsReader::pollingLoop(
     std::this_thread::sleep_for(interval);
   }
 }
-

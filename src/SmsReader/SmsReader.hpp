@@ -39,7 +39,7 @@ struct CompleteSMS {
 };
 
 // 用于同步读取短信的上下文
-struct SyncContext {
+struct MessageSyncContext {
   GMainLoop *loop;
   std::vector<CompleteSMS> completeSMSList;
   // 按 memoryIndex 存储原始短信（实际应用中可能需要按分段参考号分组）
@@ -54,7 +54,7 @@ struct SyncContext {
 
 // 用于原始读取操作的上下文
 struct RawReadUserData {
-  SyncContext *ctx;
+  MessageSyncContext *ctx;
   int memoryIndex;
   QmiMessageWmsRawReadInput *read_input;
 };
@@ -108,7 +108,7 @@ private:
   std::vector<CompleteSMS> performSyncRead();
 
   // 开始同步短信读取（前提：ctx->client 已就绪）
-  void startSyncListMessages(SyncContext *ctx);
+  void startSyncListMessages(MessageSyncContext *ctx);
 
   // 以下为各个异步回调函数，全部为静态成员函数，user_data 中传入 SyncContext*
   // 或其他上下文
@@ -123,7 +123,7 @@ private:
   static void releaseClient(QmiClient *client, gpointer user_data);
 
   // 对所有短信进行后续处理（例如多段短信拼接等）
-  static void processAllSMS(SyncContext *ctx);
+  static void processAllSMS(MessageSyncContext *ctx);
 
   // 对短信 PDU 解析，返回 SMSMessage（仅用于提取文本，此处可自定义实现）
   struct SMSMessage {
