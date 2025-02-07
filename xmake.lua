@@ -43,8 +43,12 @@ target("qmi_sms_reader")
 
 target("qmi_sms_reader_musl")
     local staging_dir = os.getenv("STAGING_DIR")
-    if not staging_dir then
-        staging_dir = ""
+        if not staging_dir then
+        if is_plat("cross") then
+            print("Please set STAGING_DIR environment variable")
+        else
+            staging_dir = ""
+        end
     end
     set_kind("binary")
     -- add_files("src/*.cpp")
