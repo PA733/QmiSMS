@@ -1,6 +1,12 @@
 add_rules("mode.debug", "mode.release")
 
-add_requires("openssl3", "cppcodec", "yaml-cpp", "ixwebsocket", "nlohmann_json")
+add_requires("ixwebsocket", {configs = {use_tls = true, ssl = "mbedtls"}})
+add_requires("yaml-cpp", {configs = {shared = false}})
+add_requires("openssl", {system = false, configs = {shared = false}})
+add_requires("cppcodec", "nlohmann_json")
+
+add_repositories("local-repo build")
+add_requires("ixwebsocket-custom", {configs = {use_tls = true, ssl = "mbedtls"}})
 
 target("qmi_sms_reader")
     set_kind("binary")
@@ -17,7 +23,7 @@ target("qmi_sms_reader")
     add_defines("DESKTOP_PDU")
     add_files("PDUlib/src/*.cpp")
 
-    add_packages("openssl3", "cppcodec", "yaml-cpp", "ixwebsocket", "nlohmann_json")
+    add_packages("openssl", "cppcodec", "yaml-cpp", "ixwebsocket-custom", "nlohmann_json")
 
     add_packages("pkgconfig::glib-2.0", "pkgconfig::qmi-glib")
     add_links("gio-2.0", "gobject-2.0", "glib-2.0")
@@ -50,7 +56,7 @@ target("qmi_sms_reader_musl")
 
     set_languages("c++20")
 
-    add_packages("openssl3", "cppcodec", "yaml-cpp", "ixwebsocket", "nlohmann_json")
+    add_packages("openssl", "cppcodec", "yaml-cpp", "ixwebsocket-custom", "nlohmann_json")
 
     add_includedirs("PDUlib/src")
     add_defines("DESKTOP_PDU")

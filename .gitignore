@@ -57,6 +57,7 @@
 ### xmake ###
 # Xmake cache
 .xmake/
-build/
+build/*
+!build/packages/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,xmake,visualstudiocode
