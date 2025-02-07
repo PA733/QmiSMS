@@ -61,3 +61,7 @@ build/*
 !build/packages/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,xmake,visualstudiocode
+
+### QmiSms ###
+# Config file
+config.yaml
