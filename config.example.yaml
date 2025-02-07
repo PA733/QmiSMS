@@ -1,0 +1,6 @@
+device_path: "/dev/cdc-wdm0"
+websocket_url: "wss://example.com/ws"
+ca_cert_path: "/etc/ssl/certs/ca-certificates.crt"
+secret_key: "123456"
+delete_after_read: true
+debug: false
