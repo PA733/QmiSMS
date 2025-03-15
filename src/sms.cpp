@@ -7,6 +7,7 @@
 #include <iostream>
 #include <thread>
 
+#include <glog/logging.h>
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 #include <nlohmann/json.hpp>
@@ -44,6 +45,14 @@ AppConfig loadConfig(const std::string &configPath) {
   return config;
 }
 
+void init_logger(bool enable_debug) {
+  FLAGS_logtostderr = 1;
+  if (enable_debug) {
+    FLAGS_v = 1;
+  }
+  google::InitGoogleLogging("QmiSms");
+}
+
 int main() {
   ix::initNetSystem();
 
@@ -56,9 +65,12 @@ int main() {
   try {
     appConfig = loadConfig("config.yaml");
   } catch (const std::exception &e) {
-    std::cerr << "加载配置文件失败: " << e.what() << std::endl;
+    LOG(ERROR) << "加载配置文件失败: " << e.what();
     return 1;
   }
+
+  // 初始化日志
+  init_logger(appConfig.debugEnabled);
 
   // 创建 WebSocket 对象
   ix::WebSocket webSocket;
@@ -76,31 +88,26 @@ int main() {
                                      const ix::WebSocketMessagePtr &msg) {
     switch (msg->type) {
     case ix::WebSocketMessageType::Open:
-      if (appConfig.debugEnabled) {
-        std::cout << "[WebSocket] 连接已建立" << std::endl;
-      }
+      LOG(INFO) << "[WebSocket] 连接已建立";
       break;
     case ix::WebSocketMessageType::Message:
       // To-Do
       break;
     case ix::WebSocketMessageType::Error:
-      if (appConfig.debugEnabled) {
-        std::cout << "[WebSocket] 连接错误: " << msg->errorInfo.reason
-                  << std::endl;
-        // 以 json 形式打印 errorInfo
+      LOG(WARNING) << "[WebSocket] 连接错误: " << msg->errorInfo.reason;
+      // 以 json 形式打印 errorInfo
+      {
         json errorInfoJson;
         errorInfoJson["reason"] = msg->errorInfo.reason;
         errorInfoJson["retries"] = msg->errorInfo.retries;
         errorInfoJson["wait_time"] = msg->errorInfo.wait_time;
         errorInfoJson["http_status"] = msg->errorInfo.http_status;
         errorInfoJson["decompressionError"] = msg->errorInfo.decompressionError;
-        std::cout << "errorInfo: " << errorInfoJson.dump() << std::endl;
+        VLOG(1) << "errorInfo: " << errorInfoJson.dump();
       }
       break;
     case ix::WebSocketMessageType::Close:
-      if (appConfig.debugEnabled) {
-        std::cout << "[WebSocket] 连接关闭" << std::endl;
-      }
+      LOG(INFO) << "[WebSocket] 连接关闭";
       break;
     default:
       break;
@@ -110,29 +117,27 @@ int main() {
   // 启动 WebSocket
   webSocket.start();
 
+  while(webSocket.getReadyState() != ix::ReadyState::Open) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
   // 初始化短信读取器
   QmiSmsReader reader(appConfig.devicePath);
 
-  if (appConfig.debugEnabled) {
-    std::cout << "\n启动异步监听，按 Ctrl+C 停止程序...\n" << std::endl;
-  }
+  LOG(INFO) << "\n启动异步监听，按 Ctrl+C 停止程序...\n" << std::endl;
 
   // 每次监听到新短信时的回调
   reader.startListening(std::chrono::seconds(1), [&](const CompleteSMS &sms) {
-    // 如果开启了debug，则打印收到的短信
-    if (appConfig.debugEnabled) {
-      std::cout << "-------------------------------------" << std::endl;
-      std::cout << "[监听到新短信]" << std::endl;
-      std::cout << "发件人: " << sms.sender << std::endl;
-      std::cout << "时间戳: " << sms.timestamp << std::endl;
-      std::cout << "完整内容: " << sms.fullText << std::endl;
-      for (const auto &part : sms.parts) {
-        std::cout << "  [索引 " << part.memoryIndex
-                  << "] 分段号: " << part.partNumber << ", 内容: " << part.text
-                  << std::endl;
-      }
-      std::cout << "-------------------------------------" << std::endl;
+    VLOG(1) << "-------------------------------------" << std::endl
+            << "[监听到新短信]" << std::endl
+            << "发件人: " << sms.sender << std::endl
+            << "时间戳: " << sms.timestamp << std::endl
+            << "完整内容: " << sms.fullText;
+    for (const auto &part : sms.parts) {
+      VLOG(1) << "  [索引 " << part.memoryIndex
+              << "] 分段号: " << part.partNumber << ", 内容: " << part.text;
     }
+    VLOG(1) << "-------------------------------------";
 
     // 签名
     std::string currentTimestamp = sms.timestamp;
@@ -164,17 +169,12 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
-  if (appConfig.debugEnabled) {
-    std::cout << "\n接收到停止信号，停止监听..." << std::endl;
-  }
+  LOG(INFO) << "\n接收到停止信号，停止监听..." << std::endl;
   reader.stopListening();
 
   // 停止 WebSocket
   webSocket.stop();
-
-  if (appConfig.debugEnabled) {
-    std::cout << "程序退出" << std::endl;
-  }
+  LOG(INFO) << "程序退出" << std::endl;
 
   return 0;
 }
