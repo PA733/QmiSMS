@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <queue>
 
 // C Headers
 extern "C" {
@@ -38,6 +39,13 @@ struct CompleteSMS {
   std::vector<SMSPart> parts; // 消息分段
 };
 
+// 用于同步列出短信的上下文
+struct ListContext {
+  GMainLoop *loop;
+  std::vector<int> *messageIndices;
+  bool success;
+};
+
 // 用于同步读取短信的上下文
 struct MessageSyncContext {
   GMainLoop *loop;
@@ -50,6 +58,9 @@ struct MessageSyncContext {
   QmiDevice *device = nullptr;
   QmiClientWms *client = nullptr;
   bool temporaryClient = false; // 若为临时 client，则操作完成后需释放
+  
+  // 添加待处理的短信索引队列
+  std::queue<int> pendingSmsIndices;
 };
 
 // 用于同步删除短信的上下文
@@ -102,6 +113,9 @@ public:
   // 停止监听，释放所有资源
   void stopListening();
 
+  // 列出所有短信的索引，新增参数表示是否已持有锁
+  std::vector<int> listAllMessages(bool alreadyLocked = false);
+
 private:
   std::string devicePath_;
   QmiDevice *device_ = nullptr;
@@ -135,8 +149,8 @@ private:
                                    gpointer user_data);
   static void releaseClientReadyCallback(QmiDevice *device, GAsyncResult *res,
                                          gpointer user_data);
-  static void deleteMessageReadyCallback(QmiClientWms *client, GAsyncResult *res,
-                                         gpointer user_data);
+  static void deleteMessageReadyCallback(QmiClientWms *client,
+                                         GAsyncResult *res, gpointer user_data);
 
   // 用于释放客户端（异步调用封装，由同步接口调用）
   static void releaseClient(QmiClient *client, gpointer user_data);
@@ -170,6 +184,9 @@ private:
   // 设备初始化和关闭
   bool initDevice();
   void closeDevice();
+
+  // 处理队列中的下一条短信
+  static void processNextSms(MessageSyncContext *ctx);
 };
 
 #endif // SMS_READER_HPP
