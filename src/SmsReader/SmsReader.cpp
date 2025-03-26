@@ -763,18 +763,69 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
   for (auto &groupEntry : multipartGroups) {
     int ref = groupEntry.first;
     auto &parts = groupEntry.second;
+
+    // 检查是否收到了所有分段
+    if (parts.empty()) {
+      continue;
+    }
+
+    // 排序所有分段
     std::sort(parts.begin(), parts.end(),
               [](const SMSPart &a, const SMSPart &b) {
                 return a.partNumber < b.partNumber;
               });
-    CompleteSMS csms;
-    csms.sender = parts.front().sender;
-    csms.timestamp = parts.front().timestamp;
-    for (const auto &p : parts) {
-      csms.fullText += p.text;
-      csms.parts.push_back(p);
+
+    // 获取总分段数（从第一个分段的concatInfo中获取）
+    PDU pdu;
+    if (!pdu.decodePDU(parts.front().hexPDU.c_str())) {
+      std::cerr << "PDU解析失败，无法获取总分段数，参考号: " << ref
+                << std::endl;
+      continue;
     }
-    completeSMSList.push_back(csms);
+    const int *concatInfo = pdu.getConcatInfo();
+    if (!concatInfo || concatInfo[2] <= 0) {
+      std::cerr << "无法获取总分段数，参考号: " << ref << std::endl;
+      continue;
+    }
+
+    int totalParts = concatInfo[2];
+
+    // 检查是否收到了所有分段
+    bool hasAllParts = (parts.size() == totalParts);
+
+    // 检查分段序号是否连续
+    if (hasAllParts) {
+      for (int i = 1; i <= totalParts; i++) {
+        bool found = false;
+        for (const auto &p : parts) {
+          if (p.partNumber == i) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          hasAllParts = false;
+          std::cerr << "分段短信不完整，缺少分段 " << i << "，参考号: " << ref
+                    << std::endl;
+          break;
+        }
+      }
+    } else {
+      std::cerr << "分段短信不完整，预期 " << totalParts << " 个分段，实际收到 "
+                << parts.size() << " 个，参考号: " << ref << std::endl;
+    }
+
+    // 只有当所有分段都收到时才组装完整短信
+    if (hasAllParts) {
+      CompleteSMS csms;
+      csms.sender = parts.front().sender;
+      csms.timestamp = parts.front().timestamp;
+      for (const auto &p : parts) {
+        csms.fullText += p.text;
+        csms.parts.push_back(p);
+      }
+      completeSMSList.push_back(csms);
+    }
   }
   ctx->completeSMSList = std::move(completeSMSList);
   g_main_loop_quit(ctx->loop);
