@@ -117,7 +117,7 @@ int main() {
   // 启动 WebSocket
   webSocket.start();
 
-  while(webSocket.getReadyState() != ix::ReadyState::Open) {
+  while (webSocket.getReadyState() != ix::ReadyState::Open) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 

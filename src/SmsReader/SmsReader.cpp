@@ -899,7 +899,7 @@ void QmiSmsReader::pollingLoop(
         if (seenMessages_.find(sms.parts.front().memoryIndex) ==
             seenMessages_.end()) {
           seenMessages_.insert(sms.parts.front().memoryIndex);
-          newMessages.push_back(sms);  // 存储到临时列表
+          newMessages.push_back(sms); // 存储到临时列表
         }
       }
       g_main_loop_unref(ctx.loop);
@@ -907,7 +907,7 @@ void QmiSmsReader::pollingLoop(
 
     // 在释放锁之后处理新消息
     for (const auto &sms : newMessages) {
-      callback(sms);  // 现在调用回调是安全的，因为已经释放了锁
+      callback(sms); // 现在调用回调是安全的，因为已经释放了锁
     }
 
     std::this_thread::sleep_for(interval);
