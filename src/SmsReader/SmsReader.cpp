@@ -717,7 +717,7 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
     int mem_index = kv.first;
     const SMSPart &rawPart = kv.second;
     // 使用 PDUlib 封装的 PDU 类进行解析
-    PDU pdu;
+    PDU pdu(200);
     if (!pdu.decodePDU(rawPart.hexPDU.c_str())) {
       std::cerr << "PDU解析失败，索引 " << mem_index << std::endl;
       continue;
