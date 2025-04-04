@@ -40,4 +40,4 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.os }}/${{ matrix.arch }}
           push: true
-          tags: ghcr.io/${{ github.repository }}/qmisms:${{ matrix.os }}-${{ matrix.arch }}
+          tags: ghcr.io/PA733/qmisms:latest
