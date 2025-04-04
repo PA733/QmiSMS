@@ -38,6 +38,6 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: ${{ matrix.os }}/{{ matrix.arch }}
+          platforms: ${{ matrix.os }}/${{ matrix.arch }}
           push: true
           tags: ghcr.io/${{ github.repository }}/qmisms:${{ matrix.os }}-${{ matrix.arch }}
