@@ -1,5 +1,5 @@
 # Builder stage
-FROM ubuntu:20.04 AS builder
+FROM ubuntu:24.04 AS builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -22,7 +22,7 @@ COPY . .
 RUN xmake f -y && xmake -y
 
 # Final stage
-FROM ubuntu:20.04
+FROM ubuntu:24.04
 
 # Set the working directory
 WORKDIR /app
