@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-dev \
     libqmi-glib-dev \
     libssl-dev \
+    p7zip-full \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
@@ -24,6 +26,10 @@ RUN export XMAKE_ROOT=y \
 
 # Final stage
 FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y \
+    libqmi-glib5 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
