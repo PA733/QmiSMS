@@ -22,7 +22,7 @@ COPY . .
 
 # Build the application
 RUN export XMAKE_ROOT=y \
-    && xmake f -y && xmake -y
+    && xmake f -y && xmake build -y qmi_sms_reader
 
 # Final stage
 FROM ubuntu:24.04
