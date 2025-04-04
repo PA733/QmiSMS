@@ -19,7 +19,8 @@ WORKDIR /app
 COPY . .
 
 # Build the application
-RUN xmake f -y && xmake -y
+RUN export XMAKE_ROOT=y \
+    && xmake f -y && xmake -y
 
 # Final stage
 FROM ubuntu:24.04
