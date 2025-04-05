@@ -709,7 +709,7 @@ void QmiSmsReader::releaseClientReadyCallback(QmiDevice *device,
 // =======================
 void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
   std::vector<CompleteSMS> completeSMSList;
-  // 用于分段短信拼接的 map，key 为分段短信的参考号+发送者+时间戳的组合
+  // 用于分段短信拼接的 map，key 为分段短信的参考号+发送者的组合
   std::unordered_map<std::string, std::vector<SMSPart>> multipartGroups;
 
   // 遍历所有读取到的短信原始数据
@@ -738,11 +738,8 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       part.hexPDU = rawPart.hexPDU;
       part.rawData = rawPart.rawData;
       
-      // 创建唯一标识符：参考号+发送者+时间戳前10位(通常包含日期)
+      // 创建唯一标识符：参考号+发送者
       std::string uniqueKey = std::to_string(ref) + "_" + sender;
-      if (timestamp && strlen(timestamp) >= 10) {
-        uniqueKey += "_" + std::string(timestamp, 10);
-      }
       multipartGroups[uniqueKey].push_back(part);
     } else {
       // 单条短信
