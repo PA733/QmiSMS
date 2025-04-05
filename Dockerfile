@@ -20,12 +20,17 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory
 WORKDIR /app
 
+# Install Xmake dependencies
+COPY xmake.lua .
+
+RUN export XMAKE_ROOT=y \
+    && xmake f -vD -y
+
 # Copy the source code
 COPY . .
 
 # Build the application
 RUN export XMAKE_ROOT=y \
-    && xmake f -vD -y && xmake build -y qmi_sms_reader \
     && find /app/build/ -type f -name qmi_sms_reader -exec cp {} /app/build/qmi_sms_reader \;
 
 # Final stage
