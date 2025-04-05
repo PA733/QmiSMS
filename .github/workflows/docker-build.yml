@@ -10,10 +10,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [linux]
-        arch: [amd64, arm64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,6 +37,6 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: ${{ matrix.os }}/${{ matrix.arch }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/pa733/qmisms:latest
