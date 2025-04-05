@@ -32,6 +32,7 @@ COPY . .
 
 # Build the application
 RUN export XMAKE_ROOT=y \
+    && xmake build -y qmi_sms_reader \
     && find /app/build/ -type f -name qmi_sms_reader -exec cp {} /app/build/qmi_sms_reader \;
 
 # Final stage
