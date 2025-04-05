@@ -709,8 +709,8 @@ void QmiSmsReader::releaseClientReadyCallback(QmiDevice *device,
 // =======================
 void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
   std::vector<CompleteSMS> completeSMSList;
-  // 用于分段短信拼接的 map，key 为分段短信的参考号
-  std::unordered_map<int, std::vector<SMSPart>> multipartGroups;
+  // 用于分段短信拼接的 map，key 为分段短信的参考号+发送者+时间戳的组合
+  std::unordered_map<std::string, std::vector<SMSPart>> multipartGroups;
 
   // 遍历所有读取到的短信原始数据
   for (const auto &kv : ctx->rawSMSMap) {
@@ -737,7 +737,13 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       part.timestamp = timestamp;
       part.hexPDU = rawPart.hexPDU;
       part.rawData = rawPart.rawData;
-      multipartGroups[ref].push_back(part);
+      
+      // 创建唯一标识符：参考号+发送者+时间戳前10位(通常包含日期)
+      std::string uniqueKey = std::to_string(ref) + "_" + sender;
+      if (timestamp && strlen(timestamp) >= 10) {
+        uniqueKey += "_" + std::string(timestamp, 10);
+      }
+      multipartGroups[uniqueKey].push_back(part);
     } else {
       // 单条短信
       SMSPart part;
@@ -758,11 +764,18 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       completeSMSList.push_back(csms);
     }
   }
-  // 对所有分段短信进行拼接：同一参考号下的各分段先按 partNumber
+  // 对所有分段短信进行拼接：同一唯一标识符下的各分段先按 partNumber
   // 升序排序，然后依次拼接文本
   for (auto &groupEntry : multipartGroups) {
-    int ref = groupEntry.first;
+    const std::string &uniqueKey = groupEntry.first;
     auto &parts = groupEntry.second;
+    
+    // 从唯一标识符中提取参考号用于日志输出
+    int ref = 0;
+    size_t pos = uniqueKey.find("_");
+    if (pos != std::string::npos) {
+      ref = std::stoi(uniqueKey.substr(0, pos));
+    }
 
     // 检查是否收到了所有分段
     if (parts.empty()) {
@@ -812,7 +825,8 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       }
     } else {
       std::cerr << "分段短信不完整，预期 " << totalParts << " 个分段，实际收到 "
-                << parts.size() << " 个，参考号: " << ref << std::endl;
+                << parts.size() << " 个，参考号: " << ref 
+                << "，发送者: " << parts.front().sender << std::endl;
     }
 
     // 只有当所有分段都收到时才组装完整短信
