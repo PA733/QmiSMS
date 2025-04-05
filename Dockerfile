@@ -33,6 +33,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y \
     libqmi-glib5 \
+    libgflags2.2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
