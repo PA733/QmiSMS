@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Install Xmake dependencies
 COPY xmake.lua .
-COPY build .
+COPY build ./build
 
 RUN export XMAKE_ROOT=y \
     && xmake f -vD -y
