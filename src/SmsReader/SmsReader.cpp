@@ -389,6 +389,15 @@ std::vector<CompleteSMS> QmiSmsReader::performSyncRead() {
   // 处理所有短信（例如多段短信拼接）
   processAllSMS(ctx);
 
+  // 处理需要删除的重复短信分段
+  if (!ctx->toDeleteIndices.empty()) {
+    std::cerr << "开始删除 " << ctx->toDeleteIndices.size() << " 个重复短信分段" << std::endl;
+    for (int index : ctx->toDeleteIndices) {
+      std::cerr << "删除重复短信分段，索引: " << index << std::endl;
+      deleteMessage(index);
+    }
+  }
+
   if (ctx->temporaryClient)
     releaseWmsClientSync(ctx->client);
 
@@ -801,10 +810,11 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
     int totalParts = concatInfo[2];
 
     // 检查是否收到了所有分段
-    bool hasAllParts = (parts.size() == totalParts);
+    bool hasAllParts = (parts.size() >= totalParts);
 
     // 检查分段序号是否连续
     if (hasAllParts) {
+      // 检查是否有所有预期的分段（从1到totalParts）
       for (int i = 1; i <= totalParts; i++) {
         bool found = false;
         for (const auto &p : parts) {
@@ -824,6 +834,56 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       std::cerr << "分段短信不完整，预期 " << totalParts << " 个分段，实际收到 "
                 << parts.size() << " 个，参考号: " << ref 
                 << "，发送者: " << parts.front().sender << std::endl;
+    }
+
+    // 去重处理：如果收到的分段数超过预期且所有预期分段都存在
+    if (hasAllParts && parts.size() > totalParts) {
+      std::cerr << "检测到重复短信分段，参考号: " << ref 
+                << "，发送者: " << parts.front().sender
+                << "，预期分段数: " << totalParts
+                << "，实际收到: " << parts.size() << std::endl;
+      
+      // 按分段号分组，每个分段号可能有多个相同的分段
+      std::unordered_map<int, std::vector<SMSPart>> partsByNumber;
+      for (const auto &p : parts) {
+        partsByNumber[p.partNumber].push_back(p);
+      }
+      
+      // 创建新的parts列表，只保留每个分段号中最完整且最早的分段
+      std::vector<SMSPart> uniqueParts;
+      std::vector<int> toDeleteIndices;
+      
+      for (int i = 1; i <= totalParts; i++) {
+        auto &duplicates = partsByNumber[i];
+        if (duplicates.size() > 1) {
+          // 按文本长度降序排序，相同长度则按时间戳升序排序
+          std::sort(duplicates.begin(), duplicates.end(), 
+                    [](const SMSPart &a, const SMSPart &b) {
+                      if (a.text.length() != b.text.length()) {
+                        return a.text.length() > b.text.length(); // 保留内容最长的
+                      }
+                      return a.timestamp < b.timestamp; // 内容长度相同时保留最早的
+                    });
+          
+          // 保留第一个（最完整且最早的）
+          uniqueParts.push_back(duplicates[0]);
+          
+          // 将其余的标记为待删除
+          for (size_t j = 1; j < duplicates.size(); j++) {
+            toDeleteIndices.push_back(duplicates[j].memoryIndex);
+          }
+        } else if (duplicates.size() == 1) {
+          uniqueParts.push_back(duplicates[0]);
+        }
+      }
+      
+      // 删除多余的分段
+      // 由于这是静态方法，我们不能直接调用deleteMessage
+      // 将待删除的索引添加到上下文中，让调用者处理删除操作
+      ctx->toDeleteIndices = toDeleteIndices;
+      
+      // 更新parts列表为去重后的列表
+      parts = uniqueParts;
     }
 
     // 只有当所有分段都收到时才组装完整短信

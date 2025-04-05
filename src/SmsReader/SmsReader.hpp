@@ -61,6 +61,9 @@ struct MessageSyncContext {
   
   // 添加待处理的短信索引队列
   std::queue<int> pendingSmsIndices;
+  
+  // 存储需要删除的重复短信索引
+  std::vector<int> toDeleteIndices;
 };
 
 // 用于同步删除短信的上下文
