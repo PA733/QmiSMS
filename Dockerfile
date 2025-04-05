@@ -4,11 +4,14 @@ FROM ubuntu:24.04 AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    xmake \
     git \
+    xmake \
+    curl \
     pkg-config \
+    libgflags-dev \
     libglib2.0-dev \
     libqmi-glib-dev \
+    libmbim-glib-dev \
     libssl-dev \
     p7zip-full \
     unzip \
@@ -22,7 +25,8 @@ COPY . .
 
 # Build the application
 RUN export XMAKE_ROOT=y \
-    && xmake f -y && xmake build -y qmi_sms_reader
+    && xmake f -vD -y && xmake build -y qmi_sms_reader \
+    && find /app/build/ -type f -name qmi_sms_reader -exec cp {} /app/build/qmi_sms_reader \;
 
 # Final stage
 FROM ubuntu:24.04
