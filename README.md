@@ -13,5 +13,8 @@ docker run -d \
   -v $(pwd)/config.yaml:/app/config.yaml \
   ghcr.io/pa733/qmisms:latest
 ```
+> [!NOTE]  
+> Currently, in environments with apparmor enabled, permissions issues may be encountered. Try adding the `--privileged` parameter.  
+> We are still working on this issue.
 ## Compatible Servers
 [Super SMS Bridge](https://github.com/PA733/SuperSMSBridge)
