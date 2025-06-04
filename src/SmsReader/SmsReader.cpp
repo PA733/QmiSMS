@@ -878,9 +878,11 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       }
       
       // 删除多余的分段
-      // 由于这是静态方法，我们不能直接调用deleteMessage
-      // 将待删除的索引添加到上下文中，让调用者处理删除操作
-      ctx->toDeleteIndices = toDeleteIndices;
+      // 由于这是静态方法，我们不能直接调用 deleteMessage
+      // 将待删除的索引追加到上下文中，让调用者统一处理删除操作
+      ctx->toDeleteIndices.insert(ctx->toDeleteIndices.end(),
+                                  toDeleteIndices.begin(),
+                                  toDeleteIndices.end());
       
       // 更新parts列表为去重后的列表
       parts = uniqueParts;
