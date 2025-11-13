@@ -389,21 +389,32 @@ std::vector<CompleteSMS> QmiSmsReader::performSyncRead() {
   // 处理所有短信（例如多段短信拼接）
   processAllSMS(ctx);
 
-  // 处理需要删除的重复短信分段
-  if (!ctx->toDeleteIndices.empty()) {
-    std::cerr << "开始删除 " << ctx->toDeleteIndices.size() << " 个重复短信分段" << std::endl;
-    for (int index : ctx->toDeleteIndices) {
+  // 将结果和待删除索引移动到局部变量中
+  std::vector<CompleteSMS> result = std::move(ctx->completeSMSList);
+  std::vector<int> duplicateIndices = std::move(ctx->toDeleteIndices);
+
+  if (ctx->temporaryClient)
+    releaseWmsClientSync(ctx->client);
+
+  g_main_loop_unref(ctx->loop);
+  delete ctx;
+
+  // 在释放 clientOperationMutex_ 之后再执行删除，避免死锁
+  opLock.unlock();
+
+  // 去重并删除重复短信分段
+  if (!duplicateIndices.empty()) {
+    std::sort(duplicateIndices.begin(), duplicateIndices.end());
+    duplicateIndices.erase(
+        std::unique(duplicateIndices.begin(), duplicateIndices.end()),
+        duplicateIndices.end());
+    std::cerr << "开始删除 " << duplicateIndices.size() << " 个重复短信分段" << std::endl;
+    for (int index : duplicateIndices) {
       std::cerr << "删除重复短信分段，索引: " << index << std::endl;
       deleteMessage(index);
     }
   }
 
-  if (ctx->temporaryClient)
-    releaseWmsClientSync(ctx->client);
-
-  std::vector<CompleteSMS> result = std::move(ctx->completeSMSList);
-  g_main_loop_unref(ctx->loop);
-  delete ctx;
   return result;
 }
 
@@ -851,7 +862,6 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
       
       // 创建新的parts列表，只保留每个分段号中最完整且最早的分段
       std::vector<SMSPart> uniqueParts;
-      std::vector<int> toDeleteIndices;
       
       for (int i = 1; i <= totalParts; i++) {
         auto &duplicates = partsByNumber[i];
@@ -870,17 +880,12 @@ void QmiSmsReader::processAllSMS(MessageSyncContext *ctx) {
           
           // 将其余的标记为待删除
           for (size_t j = 1; j < duplicates.size(); j++) {
-            toDeleteIndices.push_back(duplicates[j].memoryIndex);
+            ctx->toDeleteIndices.push_back(duplicates[j].memoryIndex);
           }
         } else if (duplicates.size() == 1) {
           uniqueParts.push_back(duplicates[0]);
         }
       }
-      
-      // 删除多余的分段
-      // 由于这是静态方法，我们不能直接调用deleteMessage
-      // 将待删除的索引添加到上下文中，让调用者处理删除操作
-      ctx->toDeleteIndices = toDeleteIndices;
       
       // 更新parts列表为去重后的列表
       parts = uniqueParts;
@@ -942,6 +947,7 @@ void QmiSmsReader::pollingLoop(
     std::function<void(const CompleteSMS &)> callback) {
   while (listening_) {
     std::vector<CompleteSMS> newMessages;
+    std::vector<int> duplicateIndices;
     {
       std::unique_lock opLock(clientOperationMutex_);
       MessageSyncContext ctx;
@@ -964,8 +970,14 @@ void QmiSmsReader::pollingLoop(
       // 处理所有短信（例如多段短信拼接）
       processAllSMS(&ctx);
 
+      // 移动结果和待删除索引
+      std::vector<CompleteSMS> messages = std::move(ctx.completeSMSList);
+      duplicateIndices = std::move(ctx.toDeleteIndices);
+
+      g_main_loop_unref(ctx.loop);
+
       // 查找新短信并存储到临时列表（在持有锁的情况下）
-      for (const auto &sms : ctx.completeSMSList) {
+      for (const auto &sms : messages) {
         std::unique_lock lock(seenMutex_);
         if (seenMessages_.find(sms.parts.front().memoryIndex) ==
             seenMessages_.end()) {
@@ -973,8 +985,21 @@ void QmiSmsReader::pollingLoop(
           newMessages.push_back(sms); // 存储到临时列表
         }
       }
-      g_main_loop_unref(ctx.loop);
     } // 在这里释放 clientOperationMutex_
+
+    // 在不持有 clientOperationMutex_ 的情况下删除重复短信分段
+    if (!duplicateIndices.empty()) {
+      std::sort(duplicateIndices.begin(), duplicateIndices.end());
+      duplicateIndices.erase(
+          std::unique(duplicateIndices.begin(), duplicateIndices.end()),
+          duplicateIndices.end());
+      std::cerr << "开始删除 " << duplicateIndices.size()
+                << " 个重复短信分段（异步监听）" << std::endl;
+      for (int index : duplicateIndices) {
+        std::cerr << "删除重复短信分段，索引: " << index << std::endl;
+        deleteMessage(index);
+      }
+    }
 
     // 在释放锁之后处理新消息
     for (const auto &sms : newMessages) {
