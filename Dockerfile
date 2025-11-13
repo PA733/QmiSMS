@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     xmake \
+    cmake \
     curl \
     pkg-config \
     libgflags-dev \

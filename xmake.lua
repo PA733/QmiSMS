@@ -3,8 +3,7 @@ add_rules("mode.debug", "mode.release")
 add_requires("ixwebsocket", {configs = {use_tls = true, ssl = "mbedtls"}})
 add_requires("yaml-cpp", {configs = {shared = false}})
 add_requires("glog", {configs = {shared = false}})
-add_requires("glib-2.0", {system = true})
-add_requires("qmi-glib", {system = true})
+add_requires("pkgconfig::glib-2.0", "pkgconfig::qmi-glib")
 add_requires("cppcodec", "nlohmann_json")
 
 add_repositories("local-repo build")
@@ -25,14 +24,13 @@ target("qmi_sms_reader")
     add_defines("DESKTOP_PDU")
     add_files("PDUlib/src/*.cpp")
 
-    add_packages("openssl", "cppcodec", "yaml-cpp", "ixwebsocket-custom", "nlohmann_json", "glog", "glib-2.0", "qmi-glib")
-    add_links("gio-2.0", "gobject-2.0", "glib-2.0")
+    add_packages("openssl", "cppcodec", "yaml-cpp", "ixwebsocket-custom",
+                 "nlohmann_json", "glog",
+                 "pkgconfig::glib-2.0", "pkgconfig::qmi-glib")
+
+    add_links("gio-2.0", "gobject-2.0", "glib-2.0", "qmi-glib")
 
     add_ldflags("-static-libgcc", "-static-libstdc++", "-Wl,-Bstatic -lc -Wl,-Bdynamic")
-    add_links("qmi-glib", "gio-2.0", "gobject-2.0", "glib-2.0")
-
-    -- 指定 libqmi 的库目录
-    add_linkdirs("/usr/lib")
 
 target("qmi_sms_reader_musl")
     local staging_dir = os.getenv("STAGING_DIR")
